@@ -49,6 +49,14 @@ import com.mariotatis.lockcontrol.data.ConfigRepository
 import com.mariotatis.lockcontrol.data.DateFormat
 import com.mariotatis.lockcontrol.data.KeyStyle
 import com.mariotatis.lockcontrol.data.LockConfig
+import com.mariotatis.lockcontrol.data.MediaStyle
+import com.mariotatis.lockcontrol.data.NotifStyle
+import androidx.compose.material.icons.rounded.CropSquare
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.PlayCircle
+import androidx.compose.material.icons.rounded.ViewAgenda
 import com.mariotatis.lockcontrol.data.TextSpec
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.rounded.FormatSize
@@ -64,7 +72,7 @@ import com.mariotatis.lockcontrol.ui.lock.formatDate
 import java.time.LocalDateTime
 import kotlin.math.roundToInt
 
-private fun update(transform: (LockConfig) -> LockConfig) = ConfigRepository.update(transform)
+private fun update(transform: (LockConfig) -> LockConfig) = ConfigRepository.edit(transform)
 
 /** Font tiles + weight slider, shared by the clock and date panels. */
 @Composable
@@ -73,7 +81,7 @@ private fun FontPicker(sample: String, font: ClockFont, weight: Int, onFont: (Cl
         ClockFont.entries.forEach { f ->
             SampleTile(f == font, { onFont(f) }, Modifier.weight(1f)) {
                 Text(
-                    sample, color = Color.White, fontSize = 28.sp, maxLines = 1,
+                    sample, color = Color.White, fontSize = LocalPanelDensity.current.tile, maxLines = 1,
                     fontFamily = f.family(), fontWeight = androidx.compose.ui.text.font.FontWeight(weight),
                 )
             }
@@ -147,7 +155,7 @@ private fun DateFormatScroller(selected: DateFormat, onSelect: (DateFormat) -> U
             Text(
                 formatDate(now, f),
                 color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
-                fontSize = 13.sp,
+                fontSize = (LocalPanelDensity.current.body.value * 1.00f).sp,
                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 1,
                 modifier = Modifier
@@ -197,7 +205,7 @@ fun BackgroundPanel(
         } else {
             Text(
                 "Pinch to zoom and drag on the preview to frame it. Tap ${if (config.backgroundType == BackgroundType.VIDEO) "Video" else "Photo"} to pick another.",
-                color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp,
+                color = Color.White.copy(alpha = 0.7f), fontSize = (LocalPanelDensity.current.body.value * 1.00f).sp,
             )
         }
         GlassSlider(Icons.Rounded.Brightness6, config.dim, 0f..0.7f, { v -> update { it.copy(dim = v) } })
@@ -219,9 +227,9 @@ private fun SourceTile(icon: ImageVector, label: String, selected: Boolean, modi
             .padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(icon, null, tint = Color.White, modifier = Modifier.size(22.dp))
+        Icon(icon, null, tint = Color.White, modifier = Modifier.size(LocalPanelDensity.current.icon + 2.dp))
         Spacer(Modifier.height(4.dp))
-        Text(label, color = Color.White, fontSize = 12.sp)
+        Text(label, color = Color.White, fontSize = (LocalPanelDensity.current.body.value * 0.92f).sp)
     }
 }
 
@@ -236,10 +244,10 @@ fun KeysPanel(
     GlassPanel(title = "Passcode keys", onClose = onClose, modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Use passcode", color = Color.White, fontSize = 15.sp)
+                Text("Use passcode", color = Color.White, fontSize = (LocalPanelDensity.current.body.value * 1.15f).sp)
                 Text(
                     if (config.hasPin) "${config.pinLength} digits" else "Off: swipe up to unlock",
-                    color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.6f), fontSize = (LocalPanelDensity.current.body.value * 0.92f).sp,
                 )
             }
             Switch(
@@ -250,7 +258,7 @@ fun KeysPanel(
         }
         if (config.hasPin) {
             Text(
-                "Change passcode", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                "Change passcode", color = Color.White, fontSize = (LocalPanelDensity.current.body.value * 1.08f).sp, fontWeight = FontWeight.Medium,
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color.White.copy(alpha = 0.12f))
@@ -265,11 +273,11 @@ fun KeysPanel(
             KeyStyle.entries.forEach { style ->
                 SampleTile(style == config.keyStyle, { update { it.copy(keyStyle = style) } }, Modifier.weight(1f)) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        KeyFace(46.dp, keys.copy(style = style), active = false) {
-                            DigitLabel(2, 46.dp, keys.textColor, keys.showLetters)
+                        KeyFace(LocalPanelDensity.current.button + 6.dp, keys.copy(style = style), active = false) {
+                            DigitLabel(2, LocalPanelDensity.current.button + 6.dp, keys.textColor, keys.showLetters)
                         }
                         Spacer(Modifier.height(4.dp))
-                        Text(style.name.lowercase().replaceFirstChar { it.uppercase() }, color = Color.White, fontSize = 11.sp)
+                        Text(style.name.lowercase().replaceFirstChar { it.uppercase() }, color = Color.White, fontSize = (LocalPanelDensity.current.body.value * 0.85f).sp)
                     }
                 }
             }
@@ -325,7 +333,7 @@ private fun TextPanel(
             value = text,
             onValueChange = onText,
             singleLine = true,
-            textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
+            textStyle = TextStyle(color = Color.White, fontSize = (LocalPanelDensity.current.body.value * 1.15f).sp),
             cursorBrush = SolidColor(Color.White),
             modifier = Modifier
                 .fillMaxWidth()
@@ -333,7 +341,7 @@ private fun TextPanel(
                 .background(Color.White.copy(alpha = 0.1f))
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             decorationBox = { inner ->
-                if (text.isEmpty()) Text(placeholder, color = Color.White.copy(alpha = 0.45f), fontSize = 15.sp)
+                if (text.isEmpty()) Text(placeholder, color = Color.White.copy(alpha = 0.45f), fontSize = (LocalPanelDensity.current.body.value * 1.15f).sp)
                 inner()
             },
         )
@@ -377,5 +385,148 @@ fun HintPanel(config: LockConfig, onClose: () -> Unit, modifier: Modifier = Modi
     ) {
         ChipToggle("Chevron", config.showHintChevron) { update { it.copy(showHintChevron = !it.showHintChevron) } }
         ChipToggle("Bar", config.showHintBar) { update { it.copy(showHintBar = !it.showHintBar) } }
+    }
+}
+
+/** Shown in the music/notification panels until notification access is granted. */
+@Composable
+private fun AccessNotice(what: String, onGrant: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFFFFB648).copy(alpha = 0.16f))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            "Showing sample $what. Allow notification access to see the real thing.",
+            color = Color.White, fontSize = (LocalPanelDensity.current.body.value * 1.00f).sp,
+        )
+        Text(
+            "Allow access", color = Color.Black, fontSize = (LocalPanelDensity.current.body.value * 1.00f).sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(Color(0xFFFFB648))
+                .clickable(onClick = onGrant)
+                .padding(horizontal = 14.dp, vertical = 7.dp),
+        )
+    }
+}
+
+@Composable
+fun MediaPanel(
+    config: LockConfig,
+    hasAccess: Boolean,
+    onGrantAccess: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    GlassPanel(
+        title = "Music", onClose = onClose, modifier = modifier,
+        leading = {
+            GlassIconButton(Icons.Rounded.AlignHorizontalCenter, "Center", { update { it.copy(mediaX = 0.5f) } })
+            VisibilityButton(config.showMedia) { update { it.copy(showMedia = !it.showMedia) } }
+        },
+    ) {
+        if (!hasAccess) AccessNotice("music", onGrantAccess)
+        GlassLabel("Style")
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(
+                MediaStyle.CARD to (Icons.Rounded.ViewAgenda to "Card"),
+                MediaStyle.SQUARE to (Icons.Rounded.CropSquare to "Square"),
+                MediaStyle.WAVE to (Icons.Rounded.GraphicEq to "Wave"),
+                MediaStyle.PILL to (Icons.Rounded.Remove to "Pill"),
+            ).forEach { (style, look) ->
+                SampleTile(style == config.mediaStyle, { update { it.copy(mediaStyle = style) } }, Modifier.weight(1f)) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(look.first, null, tint = Color.White, modifier = Modifier.size(LocalPanelDensity.current.icon + 4.dp))
+                        Spacer(Modifier.height(4.dp))
+                        Text(look.second, color = Color.White, fontSize = (LocalPanelDensity.current.body.value * 0.85f).sp)
+                    }
+                }
+            }
+        }
+        GlassDivider()
+        ColorScroller(PaletteColors, config.mediaColor) { c -> update { it.copy(mediaColor = c) } }
+        GlassLabel("Text size")
+        GlassSlider(Icons.Rounded.FormatSize, config.mediaTextScale, WidgetLimits.innerScale, { v -> update { it.copy(mediaTextScale = v) } })
+        GlassLabel("Button size")
+        GlassSlider(Icons.Rounded.PlayCircle, config.mediaButtonScale, WidgetLimits.innerScale, { v -> update { it.copy(mediaButtonScale = v) } })
+        if (config.mediaStyle == MediaStyle.CARD || config.mediaStyle == MediaStyle.PILL) {
+            GlassLabel("Background")
+            GlassSlider(Icons.Rounded.Opacity, config.mediaBgAlpha, 0f..0.9f, { a -> update { it.copy(mediaBgAlpha = a) } })
+        }
+        Text(
+            "Works with YouTube, YouTube Music, Spotify and any app that shows media controls. Hides itself when nothing is playing.",
+            color = Color.White.copy(alpha = 0.6f), fontSize = (LocalPanelDensity.current.body.value * 0.92f).sp,
+        )
+    }
+}
+
+@Composable
+fun NotificationsPanel(
+    config: LockConfig,
+    hasAccess: Boolean,
+    onGrantAccess: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    GlassPanel(
+        title = "Notifications", onClose = onClose, modifier = modifier,
+        leading = {
+            GlassIconButton(Icons.Rounded.AlignHorizontalCenter, "Center", { update { it.copy(notifX = 0.5f) } })
+            VisibilityButton(config.showNotifications) { update { it.copy(showNotifications = !it.showNotifications) } }
+        },
+    ) {
+        if (!hasAccess) AccessNotice("notifications", onGrantAccess)
+        Segmented(
+            listOf(NotifStyle.LIST to "List", NotifStyle.STACK to "Stack", NotifStyle.ICONS to "Icons"), config.notifStyle,
+        ) { s -> update { it.copy(notifStyle = s) } }
+        if (config.notifStyle != NotifStyle.ICONS) {
+            GlassLabel("Show up to ${config.notifMax}")
+            GlassSlider(
+                Icons.Rounded.Notifications, config.notifMax.toFloat(), 1f..6f,
+                { v -> update { it.copy(notifMax = v.roundToInt()) } }, steps = 4,
+            )
+        }
+        GlassLabel("Text size")
+        GlassSlider(Icons.Rounded.FormatSize, config.notifTextScale, WidgetLimits.innerScale, { v -> update { it.copy(notifTextScale = v) } })
+        GlassLabel("Background")
+        GlassSlider(Icons.Rounded.Opacity, config.notifBgAlpha, 0f..0.9f, { a -> update { it.copy(notifBgAlpha = a) } })
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ChipToggle("Hide previews", config.notifHideContent) {
+                update { it.copy(notifHideContent = !it.notifHideContent) }
+            }
+            if (config.notifStyle != NotifStyle.ICONS) {
+                ChipToggle("Clear button", config.notifShowClear) {
+                    update { it.copy(notifShowClear = !it.notifShowClear) }
+                }
+            }
+        }
+        Text(
+            "Silent notifications and ones that apps mark as secret never show on the lock screen. Hides itself when there are none.",
+            color = Color.White.copy(alpha = 0.6f), fontSize = (LocalPanelDensity.current.body.value * 0.92f).sp,
+        )
+    }
+}
+
+@Composable
+fun LockIconPanel(config: LockConfig, onClose: () -> Unit, modifier: Modifier = Modifier) {
+    GlassPanel(
+        title = "Lock icon", onClose = onClose, modifier = modifier,
+        leading = {
+            GlassIconButton(Icons.Rounded.AlignHorizontalCenter, "Center", { update { it.copy(lockIconX = 0.5f) } })
+            VisibilityButton(config.showLockIcon) { update { it.copy(showLockIcon = !it.showLockIcon) } }
+        },
+    ) {
+        ColorScroller(PaletteColors, config.lockIconColor) { c -> update { it.copy(lockIconColor = c) } }
+        GlassSlider(Icons.Rounded.Opacity, config.lockIconAlpha, 0.1f..1f, { a -> update { it.copy(lockIconAlpha = a) } })
+        GlassLabel("Size")
+        GlassSlider(Icons.Rounded.FormatSize, config.lockIconSize, WidgetLimits.lockIconSize, { v -> update { it.copy(lockIconSize = v) } })
+        Text(
+            "Drag it anywhere on the preview. It turns into an open lock as you unlock.",
+            color = Color.White.copy(alpha = 0.6f), fontSize = (LocalPanelDensity.current.body.value * 0.92f).sp,
+        )
     }
 }

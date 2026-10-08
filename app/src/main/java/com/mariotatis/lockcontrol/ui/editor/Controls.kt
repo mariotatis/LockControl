@@ -22,6 +22,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Icon
@@ -48,6 +55,29 @@ val PaletteColors = listOf(
     0xFFC3A6FF, 0xFFA8C0FF, 0xFF8AB4FF, 0xFF7FE3FF, 0xFF7CF2C8, 0xFF9BE38B, 0xFF8E8E93, 0xFF1C1C1E,
 ).map { it.toInt() }
 
+/** Sizes for the floating option panels; [Compact] is used when docked beside the preview. */
+data class PanelDensity(
+    val button: Dp = 40.dp,
+    val icon: Dp = 20.dp,
+    val title: TextUnit = 17.sp,
+    val label: TextUnit = 11.sp,
+    val body: TextUnit = 13.sp,
+    val swatch: Int = 36,
+    val gap: Dp = 14.dp,
+    val padH: Dp = 18.dp,
+    val padV: Dp = 14.dp,
+    val tile: TextUnit = 28.sp,
+) {
+    companion object {
+        val Compact = PanelDensity(
+            button = 30.dp, icon = 16.dp, title = 14.sp, label = 9.sp, body = 11.sp,
+            swatch = 24, gap = 9.dp, padH = 12.dp, padV = 10.dp, tile = 15.sp,
+        )
+    }
+}
+
+val LocalPanelDensity = staticCompositionLocalOf { PanelDensity() }
+
 private val GlassFill = Color(0xFF101016).copy(alpha = 0.74f)
 private val GlassLine = Color.White.copy(alpha = 0.12f)
 
@@ -60,36 +90,48 @@ fun GlassPanel(
     leading: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
+    val d = LocalPanelDensity.current
+    val onCollapse = LocalPanelCollapse.current
+    val corner = if (d == PanelDensity.Compact) 20.dp else 28.dp
     Column(
         modifier
-            .clip(RoundedCornerShape(28.dp))
+            .clip(RoundedCornerShape(corner))
             .background(GlassFill)
-            .border(1.dp, GlassLine, RoundedCornerShape(28.dp))
+            .border(1.dp, GlassLine, RoundedCornerShape(corner))
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(horizontal = d.padH, vertical = d.padV),
+        verticalArrangement = Arrangement.spacedBy(d.gap),
     ) {
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Text(title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-            Row(Modifier.align(Alignment.CenterStart), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                leading?.invoke()
-            }
-            Box(Modifier.align(Alignment.CenterEnd)) { GlassIconButton(Icons.Rounded.Check, "Done", onClose) }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            leading?.invoke()
+            Text(
+                title, color = Color.White, fontSize = d.title, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.weight(1f),
+            )
+            if (onCollapse != null) GlassIconButton(LocalPanelCollapseIcon.current, "Hide panel", onCollapse)
+            GlassIconButton(Icons.Rounded.Check, "Done", onClose)
         }
         content()
     }
 }
 
+/** Set by the editor when the docked panel can be slid away; null hides the collapse button. */
+val LocalPanelCollapse = staticCompositionLocalOf<(() -> Unit)?> { null }
+
+/** Points where the panel slides: right when docked in landscape, down when floating in portrait. */
+val LocalPanelCollapseIcon = staticCompositionLocalOf { Icons.AutoMirrored.Rounded.KeyboardArrowRight }
+
 @Composable
 fun GlassIconButton(icon: ImageVector, description: String, onClick: () -> Unit, selected: Boolean = false) {
+    val d = LocalPanelDensity.current
     Box(
         Modifier
-            .size(40.dp)
+            .size(d.button)
             .clip(CircleShape)
             .background(Color.White.copy(alpha = if (selected) 0.22f else 0.1f))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, description, tint = Color.White, modifier = Modifier.size(20.dp)) }
+    ) { Icon(icon, description, tint = Color.White, modifier = Modifier.size(d.icon)) }
 }
 
 /** Eye toggle in panel headers: shows or hides the element being edited. */
@@ -111,12 +153,15 @@ fun GlassSlider(
     onChange: (Float) -> Unit,
     steps: Int = 0,
 ) {
+    val d = LocalPanelDensity.current
+    val compact = d == PanelDensity.Compact
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(10.dp))
+        Icon(icon, null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(if (compact) 14.dp else 18.dp))
+        Spacer(Modifier.width(if (compact) 6.dp else 10.dp))
         Slider(
             value = value.coerceIn(range), onValueChange = onChange, valueRange = range, steps = steps,
-            modifier = Modifier.weight(1f),
+            // The default slider is 48dp tall; squash it so compact panels fit more rows.
+            modifier = Modifier.weight(1f).then(if (compact) Modifier.height(26.dp).scale(scaleX = 1f, scaleY = 0.8f) else Modifier),
             colors = SliderDefaults.colors(
                 thumbColor = Color.White,
                 activeTrackColor = Color.White.copy(alpha = 0.85f),
@@ -135,18 +180,18 @@ fun GlassDivider() {
 
 @Composable
 fun GlassLabel(text: String) {
-    Text(text.uppercase(), color = Color.White.copy(alpha = 0.55f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
+    Text(text.uppercase(), color = Color.White.copy(alpha = 0.55f), fontSize = LocalPanelDensity.current.label, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
 }
 
 /** Horizontally scrolling swatches; the selected one gets a ring. */
 @Composable
-fun SwatchScroller(brushes: List<Brush>, selected: Int, onSelect: (Int) -> Unit, size: Int = 36) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = 2.dp)) {
+fun SwatchScroller(brushes: List<Brush>, selected: Int, onSelect: (Int) -> Unit, size: Int = LocalPanelDensity.current.swatch) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy((size * 0.28f).dp), contentPadding = PaddingValues(horizontal = 2.dp)) {
         itemsIndexed(brushes) { i, brush ->
             val isSelected = i == selected
             Box(
                 Modifier
-                    .size((size + 10).dp)
+                    .size((size * 1.28f).dp)
                     .clip(CircleShape)
                     .border(2.dp, if (isSelected) Color.White else Color.Transparent, CircleShape)
                     .clickable { onSelect(i) },
@@ -178,7 +223,7 @@ fun <T> Segmented(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> 
             Text(
                 label,
                 color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
-                fontSize = 14.sp,
+                fontSize = LocalPanelDensity.current.body,
                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier
@@ -186,7 +231,7 @@ fun <T> Segmented(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> 
                     .clip(CircleShape)
                     .background(if (isSelected) Color.White.copy(alpha = 0.18f) else Color.Transparent)
                     .clickable { onSelect(value) }
-                    .padding(vertical = 9.dp),
+                    .padding(vertical = if (LocalPanelDensity.current == PanelDensity.Compact) 6.dp else 9.dp),
             )
         }
     }
@@ -197,13 +242,16 @@ fun ChipToggle(label: String, checked: Boolean, onToggle: () -> Unit) {
     Text(
         label,
         color = if (checked) Color.Black else Color.White,
-        fontSize = 13.sp,
+        fontSize = LocalPanelDensity.current.body,
         fontWeight = FontWeight.Medium,
         modifier = Modifier
             .clip(CircleShape)
             .background(if (checked) Color.White.copy(alpha = 0.92f) else Color.White.copy(alpha = 0.12f))
             .clickable(onClick = onToggle)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(
+                horizontal = if (LocalPanelDensity.current == PanelDensity.Compact) 10.dp else 14.dp,
+                vertical = if (LocalPanelDensity.current == PanelDensity.Compact) 5.dp else 8.dp,
+            ),
     )
 }
 
@@ -216,7 +264,7 @@ fun SampleTile(selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modi
             .background(if (selected) Color.White.copy(alpha = 0.1f) else Color.Transparent)
             .border(1.5.dp, if (selected) Color.White.copy(alpha = 0.55f) else Color.Transparent, RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
+            .padding(vertical = if (LocalPanelDensity.current == PanelDensity.Compact) 4.dp else 8.dp),
         contentAlignment = Alignment.Center,
     ) { content() }
 }

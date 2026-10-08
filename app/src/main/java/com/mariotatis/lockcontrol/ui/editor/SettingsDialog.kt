@@ -44,18 +44,30 @@ import com.mariotatis.lockcontrol.ui.theme.PanelHigh
 import com.mariotatis.lockcontrol.ui.theme.TextMuted
 import com.mariotatis.lockcontrol.ui.theme.Warning
 
-private fun update(transform: (LockConfig) -> LockConfig) = ConfigRepository.update(transform)
+private fun update(transform: (LockConfig) -> LockConfig) = ConfigRepository.edit(transform)
 
 /** Gear menu: setup status, what's shown on the lock screen, and behavior. */
 @Composable
-fun SettingsDialog(config: LockConfig, serviceEnabled: Boolean, systemLockOn: Boolean, onDismiss: () -> Unit) {
+fun SettingsDialog(
+    config: LockConfig,
+    serviceEnabled: Boolean,
+    systemLockOn: Boolean,
+    notificationAccess: Boolean,
+    onDismiss: () -> Unit,
+) {
     Dialog(onDismiss, DialogProperties(usePlatformDefaultWidth = false)) {
-        CompositionLocalProvider(LocalContentColor provides Color.White) { SettingsContent(config, serviceEnabled, systemLockOn, onDismiss) }
+        CompositionLocalProvider(LocalContentColor provides Color.White) { SettingsContent(config, serviceEnabled, systemLockOn, notificationAccess, onDismiss) }
     }
 }
 
 @Composable
-private fun SettingsContent(config: LockConfig, serviceEnabled: Boolean, systemLockOn: Boolean, onDismiss: () -> Unit) {
+private fun SettingsContent(
+    config: LockConfig,
+    serviceEnabled: Boolean,
+    systemLockOn: Boolean,
+    notificationAccess: Boolean,
+    onDismiss: () -> Unit,
+) {
     val context = LocalContext.current
     run {
         Column(
@@ -96,10 +108,20 @@ private fun SettingsContent(config: LockConfig, serviceEnabled: Boolean, systemL
                 OutlinedButton(onClick = { context.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) }) { Text("Security settings") }
             }
 
+            if (notificationAccess) {
+                StatusLine(true, "Notification access is on", null)
+            } else {
+                StatusLine(false, "Notification access is off", "Needed to show music and notifications on the lock screen.")
+                OutlinedButton(onClick = { openNotificationAccess(context) }) { Text("Allow access") }
+            }
+
             SectionLabel("Lock screen")
             SwitchRow("Use custom lock screen", config.enabled, { on -> update { it.copy(enabled = on) } }, "Shows every time the screen turns off")
             SwitchRow("Show clock", config.showClock, { on -> update { it.copy(showClock = on) } })
             SwitchRow("Show date", config.showDate, { on -> update { it.copy(showDate = on) } })
+            SwitchRow("Show music", config.showMedia, { on -> update { it.copy(showMedia = on) } })
+            SwitchRow("Show notifications", config.showNotifications, { on -> update { it.copy(showNotifications = on) } })
+            SwitchRow("Lock icon", config.showLockIcon, { on -> update { it.copy(showLockIcon = on) } })
             SwitchRow("Battery indicator", config.showBattery, { on -> update { it.copy(showBattery = on) } })
             SwitchRow("Unlock hint", config.showHint, { on -> update { it.copy(showHint = on) } })
 

@@ -2,6 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Resolve app names/icons for music sources and notifications (Android 11+ package visibility). -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:name=".LockControlApp"
         android:allowBackup="true"
@@ -37,6 +45,16 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/lock_accessibility_service" />
+        </service>
+
+        <service
+            android:name=".media.LockNotificationListener"
+            android:exported="true"
+            android:label="@string/listener_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
         </service>
 
         <service

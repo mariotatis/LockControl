@@ -76,7 +76,7 @@ private fun TryItPreview(onClose: () -> Unit) {
     }
 
     Box(Modifier.fillMaxSize().captureKeys(keys)) {
-        LockScreen(config = config, active = true, keyEvents = keys, onUnlocked = onClose)
+        LockScreen(rawConfig = config, active = true, keyEvents = keys, onUnlocked = onClose)
         Row(
             Modifier
                 .align(Alignment.TopStart)

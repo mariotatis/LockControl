@@ -2,5 +2,6 @@
     <string name="app_name">Lock Control</string>
     <string name="service_label">Lock Control lock screen</string>
     <string name="service_description">Shows your custom Lock Control lock screen when the display turns off, and blocks buttons and gestures until you unlock it. It does not read or collect any screen content.</string>
+    <string name="listener_label">Lock Control music &amp; notifications</string>
     <string name="tile_label">Lock now</string>
 </resources>
