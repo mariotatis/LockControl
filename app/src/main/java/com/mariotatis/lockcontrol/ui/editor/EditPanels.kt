@@ -20,6 +20,9 @@ import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material.icons.rounded.AlignHorizontalCenter
 import androidx.compose.material.icons.rounded.BlurOn
+import androidx.compose.material.icons.rounded.Dialpad
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.rounded.Brightness6
 import androidx.compose.material.icons.rounded.LineWeight
 import androidx.compose.material.icons.rounded.Opacity
@@ -99,8 +102,10 @@ fun ClockPanel(config: LockConfig, onClose: () -> Unit, modifier: Modifier = Mod
         Segmented(
             listOf(ClockLayout.INLINE to "Inline", ClockLayout.STACKED to "Stacked"), config.clockLayout,
         ) { l -> update { it.copy(clockLayout = l) } }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             ChipToggle("24-hour", config.use24h) { update { it.copy(use24h = !it.use24h) } }
+            if (!config.use24h) ChipToggle("AM/PM", config.showAmPm) { update { it.copy(showAmPm = !it.showAmPm) } }
+            ChipToggle("Leading 0", config.clockLeadingZero) { update { it.copy(clockLeadingZero = !it.clockLeadingZero) } }
             ChipToggle("Seconds", config.showSeconds) { update { it.copy(showSeconds = !it.showSeconds) } }
             ChipToggle("Shadow", config.clockShadow) { update { it.copy(clockShadow = !it.clockShadow) } }
         }
@@ -125,12 +130,33 @@ fun DatePanel(config: LockConfig, onClose: () -> Unit, modifier: Modifier = Modi
         GlassDivider()
         ColorScroller(PaletteColors, config.dateColor) { c -> update { it.copy(dateColor = c) } }
         GlassSlider(Icons.Rounded.Opacity, config.dateAlpha, 0.1f..1f, { a -> update { it.copy(dateAlpha = a) } })
-        val now = LocalDateTime.now()
-        Segmented(
-            listOf(DateFormat.SHORT to formatDate(now, DateFormat.SHORT), DateFormat.LONG to "Full"), config.dateFormat,
-        ) { f -> update { it.copy(dateFormat = f) } }
+        DateFormatScroller(config.dateFormat) { f -> update { it.copy(dateFormat = f) } }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ChipToggle("Shadow", config.clockShadow) { update { it.copy(clockShadow = !it.clockShadow) } }
+        }
+    }
+}
+
+/** Every date style, each shown as today's date written that way. */
+@Composable
+private fun DateFormatScroller(selected: DateFormat, onSelect: (DateFormat) -> Unit) {
+    val now = remember { LocalDateTime.now() }
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(DateFormat.entries) { f ->
+            val isSelected = f == selected
+            Text(
+                formatDate(now, f),
+                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
+                fontSize = 13.sp,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White.copy(alpha = if (isSelected) 0.2f else 0.07f))
+                    .border(1.5.dp, if (isSelected) Color.White.copy(alpha = 0.55f) else Color.Transparent, RoundedCornerShape(50))
+                    .clickable { onSelect(f) }
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
+            )
         }
     }
 }
@@ -248,6 +274,8 @@ fun KeysPanel(
                 }
             }
         }
+        GlassLabel("Keypad size")
+        GlassSlider(Icons.Rounded.Dialpad, config.keypadScale, WidgetLimits.keypadScale, { v -> update { it.copy(keypadScale = v) } })
         GlassLabel("Keys")
         ColorScroller(PaletteColors, config.keyColor) { c -> update { it.copy(keyColor = c) } }
         GlassSlider(Icons.Rounded.Opacity, config.keyAlpha, 0f..0.6f, { a -> update { it.copy(keyAlpha = a) } })

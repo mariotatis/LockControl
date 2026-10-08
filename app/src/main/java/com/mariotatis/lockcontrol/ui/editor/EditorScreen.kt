@@ -56,6 +56,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -219,29 +220,36 @@ private fun TopBar(
     onTryIt: () -> Unit,
     onSettings: () -> Unit,
 ) {
-    Row(
-        Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        AppBadge()
-        Text("Lock Control", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-        if (setupIncomplete) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // On narrow (portrait) screens the gear's orange dot alone signals unfinished setup.
+        val roomy = maxWidth > 560.dp
+        Row(
+            Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            AppBadge()
             Text(
-                "Finish setup", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(Warning)
-                    .clickable(onClick = onSettings)
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                "Lock Control", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
             )
-        }
-        ViewSwitcher(view, onView)
-        GlassIconButton(Icons.Rounded.PlayArrow, "Try it", onTryIt)
-        Box {
-            GlassIconButton(Icons.Outlined.Settings, "Settings", onSettings)
-            if (setupIncomplete) {
-                Box(Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp).size(10.dp).clip(CircleShape).background(Warning))
+            if (setupIncomplete && roomy) {
+                Text(
+                    "Finish setup", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(Warning)
+                        .clickable(onClick = onSettings)
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+            ViewSwitcher(view, onView)
+            GlassIconButton(Icons.Rounded.PlayArrow, "Try it", onTryIt)
+            Box {
+                GlassIconButton(Icons.Outlined.Settings, "Settings", onSettings)
+                if (setupIncomplete) {
+                    Box(Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp).size(10.dp).clip(CircleShape).background(Warning))
+                }
             }
         }
     }

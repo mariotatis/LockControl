@@ -15,6 +15,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -31,6 +34,10 @@ import com.mariotatis.lockcontrol.data.TextSpec
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -97,19 +104,38 @@ fun ClockWidget(config: LockConfig, now: LocalDateTime, modifier: Modifier = Mod
         letterSpacing = (-0.02).em,
         fontFeatureSettings = "tnum",
     )
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+    val hours = when {
+        config.use24h -> if (config.clockLeadingZero) "HH" else "H"
+        else -> if (config.clockLeadingZero) "hh" else "h"
+    }
+    val rest = if (config.showSeconds) "mm:ss" else "mm"
+    // AM/PM is drawn small beside the minutes, like a watch face; 12-hour only.
+    val amPm = if (config.showAmPm && !config.use24h) now.format(DateTimeFormatter.ofPattern(" a", Locale.getDefault())) else ""
+    fun withAmPm(text: String) = buildAnnotatedString {
+        append(text)
+        if (amPm.isNotEmpty()) {
+            withStyle(SpanStyle(fontSize = (size * 0.3f).sp, letterSpacing = 0.em)) { append(amPm) }
+        }
+    }
+    Column(modifier.fitWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         when (config.clockLayout) {
-            ClockLayout.INLINE -> Text(formatTime(now, config), style = timeStyle)
+            // A clock never wraps; if it's wider than the screen, resize it from the corners.
+            ClockLayout.INLINE -> Text(
+                withAmPm(now.format(DateTimeFormatter.ofPattern("$hours:$rest"))), style = timeStyle, softWrap = false,
+            )
             ClockLayout.STACKED -> {
-                Text(now.format(DateTimeFormatter.ofPattern(if (config.use24h) "HH" else "hh")), style = timeStyle)
-                Text(now.format(DateTimeFormatter.ofPattern(if (config.showSeconds) "mm:ss" else "mm")), style = timeStyle)
+                Text(now.format(DateTimeFormatter.ofPattern(hours)), style = timeStyle, softWrap = false)
+                Text(withAmPm(now.format(DateTimeFormatter.ofPattern(rest))), style = timeStyle, softWrap = false)
             }
         }
     }
 }
 
-fun formatDate(now: LocalDateTime, format: DateFormat, locale: Locale = Locale.getDefault()): String =
-    now.format(DateTimeFormatter.ofPattern(if (format == DateFormat.SHORT) "EEE d MMM" else "EEEE, MMMM d", locale))
+fun formatDate(now: LocalDateTime, format: DateFormat, locale: Locale = Locale.getDefault()): String {
+    val formatter = format.pattern?.let { DateTimeFormatter.ofPattern(it, locale) }
+        ?: DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale)
+    return now.format(formatter)
+}
 
 @Composable
 fun DateWidget(config: LockConfig, now: LocalDateTime, modifier: Modifier = Modifier) {
@@ -118,15 +144,28 @@ fun DateWidget(config: LockConfig, now: LocalDateTime, modifier: Modifier = Modi
     val style = widgetTextStyle(
         config, size, config.dateColor, config.dateAlpha, config.dateFont, config.dateWeight, config.dateStretch,
     ).copy(lineHeight = (size * 1.2f).sp)
-    Text(date, style = style, modifier = modifier)
+    Text(date, style = style, modifier = modifier.fitWidth(), softWrap = false)
 }
 
-private fun formatTime(now: LocalDateTime, config: LockConfig): String {
-    val pattern = buildString {
-        append(if (config.use24h) "HH:mm" else "h:mm")
-        if (config.showSeconds) append(":ss")
+/**
+ * Lays the content out at its natural width; if that's wider than the space
+ * available (e.g. a big clock on a portrait screen), shrinks it uniformly to
+ * fit instead of clipping or wrapping.
+ */
+fun Modifier.fitWidth(): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = Constraints.Infinity))
+    if (!constraints.hasBoundedWidth || placeable.width <= constraints.maxWidth) {
+        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+    } else {
+        val scale = constraints.maxWidth / placeable.width.toFloat()
+        layout(constraints.maxWidth, (placeable.height * scale).roundToInt()) {
+            placeable.placeWithLayer(0, 0) {
+                scaleX = scale
+                scaleY = scale
+                transformOrigin = TransformOrigin(0f, 0f)
+            }
+        }
     }
-    return now.format(DateTimeFormatter.ofPattern(pattern))
 }
 
 /**

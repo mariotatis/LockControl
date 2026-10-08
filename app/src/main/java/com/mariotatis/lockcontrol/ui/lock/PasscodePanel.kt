@@ -87,10 +87,12 @@ data class KeypadStyle(
     val keyAlpha: Float = 0.16f,
     val textColor: Color = Color.White,
     val showLetters: Boolean = true,
+    val scale: Float = 1f,
 ) {
     companion object {
         fun of(config: LockConfig) = KeypadStyle(
             config.keyStyle, Color(config.keyColor), config.keyAlpha, Color(config.keyTextColor), config.showKeyLetters,
+            config.keypadScale.coerceIn(0.3f, 1f),
         )
     }
 }
@@ -130,11 +132,12 @@ fun PasscodePanel(
     fun Modifier.part(shown: Boolean) = if (shown) this else if (ghosts) alpha(0.25f) else alpha(0f)
     BoxWithConstraints(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val wide = maxWidth > maxHeight * 1.15f
-        val button = if (wide) {
+        val fullSize = if (wide) {
             min(84.dp, (maxHeight - 112.dp) / 4.8f)
         } else {
             min(84.dp, min((maxWidth - 64.dp) / 3.8f, (maxHeight - 280.dp) / 4.7f))
         }
+        val button = fullSize * keys.scale
         val gap = button * 0.26f
 
         val info: @Composable () -> Unit = {
@@ -240,7 +243,7 @@ private fun Keypad(
                             digit, button, focused, flashKey == index, enabled, keys,
                         ) { onKey(index) }
                         index == PadKeys.CANCEL -> TextKey(button, focused, enabled, keys, { onKey(index) }) {
-                            Text("Cancel", color = keys.textColor, fontSize = 16.sp)
+                            Text("Cancel", color = keys.textColor, fontSize = (button.value * 0.21f).coerceAtMost(16f).sp, maxLines = 1)
                         }
                         else -> TextKey(button, focused, enabled && canDelete, keys, { onKey(index) }) {
                             Icon(

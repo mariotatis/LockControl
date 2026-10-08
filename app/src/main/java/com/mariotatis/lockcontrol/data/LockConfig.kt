@@ -9,7 +9,17 @@ enum class ClockFont { SANS, CONDENSED, SERIF, MONO }
 
 enum class ClockLayout { INLINE, STACKED }
 
-enum class DateFormat { SHORT, LONG }
+/** Date styles; [pattern] null means the device's own short numeric date. */
+enum class DateFormat(val pattern: String?) {
+    LONG("EEEE, MMMM d"),
+    SHORT("EEE d MMM"),
+    WEEKDAY_DAY("EEEE d"),
+    MONTH_DAY("MMMM d"),
+    WEEKDAY("EEEE"),
+    FULL("EEEE, MMMM d, yyyy"),
+    NUMERIC(null),
+    ISO("yyyy-MM-dd"),
+}
 
 /** Look of the passcode keys. */
 enum class KeyStyle { GLASS, OUTLINE, SQUARE, MINIMAL }
@@ -51,6 +61,7 @@ object WidgetLimits {
     val stretch = 0.4f..3f
     val weight = 100f..900f
     val bgScale = 1f..5f
+    val keypadScale = 0.5f..1f
 }
 
 /**
@@ -80,6 +91,8 @@ data class LockConfig(
     val clockAlpha: Float = 1f,
     val use24h: Boolean = false,
     val showSeconds: Boolean = false,
+    val showAmPm: Boolean = false,
+    val clockLeadingZero: Boolean = false,
     val showDate: Boolean = true,
     val dateX: Float = 0.5f,
     val dateY: Float = 0.17f,
@@ -107,6 +120,7 @@ data class LockConfig(
     val keyColor: Int = 0xFFFFFFFF.toInt(),
     val keyAlpha: Float = 0.16f,
     val keyTextColor: Int = 0xFFFFFFFF.toInt(),
+    val keypadScale: Float = 1f,
     val pinHash: String? = null,
     val pinSalt: String? = null,
     val pinLength: Int = 0,
@@ -144,6 +158,8 @@ data class LockConfig(
         put("clockAlpha", num(clockAlpha))
         put("use24h", use24h)
         put("showSeconds", showSeconds)
+        put("showAmPm", showAmPm)
+        put("clockLeadingZero", clockLeadingZero)
         put("showDate", showDate)
         put("dateX", num(dateX))
         put("dateY", num(dateY))
@@ -171,6 +187,7 @@ data class LockConfig(
         put("keyColor", keyColor)
         put("keyAlpha", num(keyAlpha))
         put("keyTextColor", keyTextColor)
+        put("keypadScale", num(keypadScale))
         put("pinHash", pinHash ?: JSONObject.NULL)
         put("pinSalt", pinSalt ?: JSONObject.NULL)
         put("pinLength", pinLength)
@@ -213,6 +230,12 @@ data class LockConfig(
                 clockAlpha = f("clockAlpha", d.clockAlpha),
                 use24h = o.optBoolean("use24h", d.use24h),
                 showSeconds = o.optBoolean("showSeconds", d.showSeconds),
+                showAmPm = o.optBoolean("showAmPm", d.showAmPm),
+                // v1.0 padded 24-hour and stacked clocks; keep that look for existing setups.
+                clockLeadingZero = o.optBoolean(
+                    "clockLeadingZero",
+                    o.optBoolean("use24h", false) || o.optString("clockLayout") == ClockLayout.STACKED.name,
+                ),
                 showDate = o.optBoolean("showDate", d.showDate),
                 dateX = f("dateX", d.dateX),
                 dateY = f("dateY", d.dateY),
@@ -241,6 +264,7 @@ data class LockConfig(
                 keyColor = o.optInt("keyColor", d.keyColor),
                 keyAlpha = f("keyAlpha", d.keyAlpha),
                 keyTextColor = o.optInt("keyTextColor", d.keyTextColor),
+                keypadScale = f("keypadScale", d.keypadScale),
                 pinHash = o.optStringOrNull("pinHash"),
                 pinSalt = o.optStringOrNull("pinSalt"),
                 pinLength = o.optInt("pinLength", d.pinLength),
