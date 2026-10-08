@@ -21,6 +21,12 @@ enum class DateFormat(val pattern: String?) {
     ISO("yyyy-MM-dd"),
 }
 
+/** Look of the now-playing widget. */
+enum class MediaStyle { CARD, SQUARE, WAVE, PILL }
+
+/** How the notification group is drawn. */
+enum class NotifStyle { LIST, STACK, ICONS }
+
 /** Look of the passcode keys. */
 enum class KeyStyle { GLASS, OUTLINE, SQUARE, MINIMAL }
 
@@ -62,6 +68,11 @@ object WidgetLimits {
     val weight = 100f..900f
     val bgScale = 1f..5f
     val keypadScale = 0.5f..1f
+    val lockIconSize = 12f..96f
+    /** Uniform scale for box widgets (music, notifications), stored as a percentage. */
+    val boxScale = 50f..200f
+    /** Text / button size multipliers inside the music and notification widgets. */
+    val innerScale = 0.7f..2.2f
 }
 
 /**
@@ -105,6 +116,12 @@ data class LockConfig(
     val dateFormat: DateFormat = DateFormat.LONG,
     val clockShadow: Boolean = true,
     val showBattery: Boolean = true,
+    val showLockIcon: Boolean = true,
+    val lockIconColor: Int = 0xFFFFFFFF.toInt(),
+    val lockIconAlpha: Float = 0.9f,
+    val lockIconSize: Float = 22f,
+    val lockIconX: Float = 0.5f,
+    val lockIconY: Float = 0.045f,
     val showHint: Boolean = true,
     val showHintChevron: Boolean = true,
     val showHintBar: Boolean = true,
@@ -116,6 +133,25 @@ data class LockConfig(
     val promptStyle: TextSpec = TextSpec(weight = 500, alpha = 1f, size = 21f),
     val showKeyLetters: Boolean = true,
     val passcodeBlur: Float = 40f,
+    val showMedia: Boolean = true,
+    val mediaX: Float = 0.24f,
+    val mediaY: Float = 0.72f,
+    val mediaScale: Float = 80f,
+    val mediaStyle: MediaStyle = MediaStyle.CARD,
+    val mediaBgAlpha: Float = 0.35f,
+    val mediaColor: Int = 0xFFFFFFFF.toInt(),
+    val mediaTextScale: Float = 1.3f,
+    val mediaButtonScale: Float = 1.35f,
+    val showNotifications: Boolean = true,
+    val notifX: Float = 0.76f,
+    val notifY: Float = 0.72f,
+    val notifScale: Float = 80f,
+    val notifStyle: NotifStyle = NotifStyle.LIST,
+    val notifMax: Int = 2,
+    val notifHideContent: Boolean = false,
+    val notifBgAlpha: Float = 0.35f,
+    val notifTextScale: Float = 1.25f,
+    val notifShowClear: Boolean = true,
     val keyStyle: KeyStyle = KeyStyle.GLASS,
     val keyColor: Int = 0xFFFFFFFF.toInt(),
     val keyAlpha: Float = 0.16f,
@@ -124,7 +160,31 @@ data class LockConfig(
     val pinHash: String? = null,
     val pinSalt: String? = null,
     val pinLength: Int = 0,
+    /** Portrait positions/sizes ([LAYOUT_KEYS]); null until first edited in portrait. Top-level fields are landscape. */
+    val portraitLayout: Map<String, Double>? = null,
 ) {
+    /** This config as it should look in the given orientation (portrait swaps in its own layout). */
+    fun forOrientation(portrait: Boolean): LockConfig {
+        val layout = portraitLayout
+        if (!portrait || layout == null) return this
+        val o = JSONObject(toJson())
+        layout.forEach { (k, v) -> if (v.isFinite()) o.put(k, v) }
+        return fromJson(o.toString())
+    }
+
+    /**
+     * Folds an [edited] copy of `forOrientation(portrait)` back into this config: layout fields go to
+     * that orientation only, everything else (styles, colors, toggles) is shared.
+     */
+    fun mergeEdit(portrait: Boolean, edited: LockConfig): LockConfig {
+        if (!portrait) return edited.copy(portraitLayout = portraitLayout)
+        val editedJson = JSONObject(edited.toJson())
+        val mine = JSONObject(toJson())
+        val layout = LAYOUT_KEYS.associateWith { editedJson.optDouble(it) }.filterValues { it.isFinite() }
+        LAYOUT_KEYS.forEach { if (mine.has(it)) editedJson.put(it, mine.get(it)) }
+        return fromJson(editedJson.toString()).copy(portraitLayout = layout)
+    }
+
     val hasPin: Boolean get() = pinHash != null && pinSalt != null && pinLength > 0
 
     fun hintLabel(): String = hintText.ifBlank {
@@ -172,6 +232,12 @@ data class LockConfig(
         put("dateFormat", dateFormat.name)
         put("clockShadow", clockShadow)
         put("showBattery", showBattery)
+        put("showLockIcon", showLockIcon)
+        put("lockIconColor", lockIconColor)
+        put("lockIconAlpha", num(lockIconAlpha))
+        put("lockIconSize", num(lockIconSize))
+        put("lockIconX", num(lockIconX))
+        put("lockIconY", num(lockIconY))
         put("showHint", showHint)
         put("showHintChevron", showHintChevron)
         put("showHintBar", showHintBar)
@@ -183,6 +249,25 @@ data class LockConfig(
         put("promptStyle", promptStyle.toJson())
         put("showKeyLetters", showKeyLetters)
         put("passcodeBlur", num(passcodeBlur))
+        put("showMedia", showMedia)
+        put("mediaX", num(mediaX))
+        put("mediaY", num(mediaY))
+        put("mediaScale", num(mediaScale))
+        put("mediaStyle", mediaStyle.name)
+        put("mediaBgAlpha", num(mediaBgAlpha))
+        put("mediaColor", mediaColor)
+        put("mediaTextScale", num(mediaTextScale))
+        put("mediaButtonScale", num(mediaButtonScale))
+        put("showNotifications", showNotifications)
+        put("notifX", num(notifX))
+        put("notifY", num(notifY))
+        put("notifScale", num(notifScale))
+        put("notifStyle", notifStyle.name)
+        put("notifMax", notifMax)
+        put("notifHideContent", notifHideContent)
+        put("notifBgAlpha", num(notifBgAlpha))
+        put("notifTextScale", num(notifTextScale))
+        put("notifShowClear", notifShowClear)
         put("keyStyle", keyStyle.name)
         put("keyColor", keyColor)
         put("keyAlpha", num(keyAlpha))
@@ -191,9 +276,23 @@ data class LockConfig(
         put("pinHash", pinHash ?: JSONObject.NULL)
         put("pinSalt", pinSalt ?: JSONObject.NULL)
         put("pinLength", pinLength)
+        portraitLayout?.let { layout ->
+            put("portraitLayout", JSONObject().apply { layout.forEach { (k, v) -> if (v.isFinite()) put(k, v) } })
+        }
     }.toString()
 
     companion object {
+        /** Fields that are stored separately for portrait: where things are and how big. */
+        val LAYOUT_KEYS = listOf(
+            "clockX", "clockY", "clockSize", "clockStretch",
+            "dateX", "dateY", "dateSize", "dateStretch",
+            "mediaX", "mediaY", "mediaScale",
+            "notifX", "notifY", "notifScale",
+            "lockIconX", "lockIconY", "lockIconSize",
+            "bgScale", "bgOffsetX", "bgOffsetY",
+            "keypadScale",
+        )
+
         /** Fonts saved by v1, where weight was baked into the font choice. */
         private val legacyFonts = mapOf(
             "THIN" to (ClockFont.SANS to 100),
@@ -249,6 +348,12 @@ data class LockConfig(
                 dateFormat = enumOr(o.optString("dateFormat"), d.dateFormat),
                 clockShadow = o.optBoolean("clockShadow", d.clockShadow),
                 showBattery = o.optBoolean("showBattery", d.showBattery),
+                showLockIcon = o.optBoolean("showLockIcon", d.showLockIcon),
+                lockIconColor = o.optInt("lockIconColor", d.lockIconColor),
+                lockIconAlpha = f("lockIconAlpha", d.lockIconAlpha),
+                lockIconSize = f("lockIconSize", d.lockIconSize),
+                lockIconX = f("lockIconX", d.lockIconX),
+                lockIconY = f("lockIconY", d.lockIconY),
                 showHint = o.optBoolean("showHint", d.showHint),
                 showHintChevron = o.optBoolean("showHintChevron", d.showHintChevron),
                 showHintBar = o.optBoolean("showHintBar", d.showHintBar),
@@ -260,6 +365,25 @@ data class LockConfig(
                 promptStyle = TextSpec.fromJson(o.optJSONObject("promptStyle"), d.promptStyle),
                 showKeyLetters = o.optBoolean("showKeyLetters", d.showKeyLetters),
                 passcodeBlur = f("passcodeBlur", d.passcodeBlur),
+                showMedia = o.optBoolean("showMedia", d.showMedia),
+                mediaX = f("mediaX", d.mediaX),
+                mediaY = f("mediaY", d.mediaY),
+                mediaScale = f("mediaScale", d.mediaScale),
+                mediaStyle = enumOr(o.optString("mediaStyle"), d.mediaStyle),
+                mediaBgAlpha = f("mediaBgAlpha", d.mediaBgAlpha),
+                mediaColor = o.optInt("mediaColor", d.mediaColor),
+                mediaTextScale = f("mediaTextScale", d.mediaTextScale),
+                mediaButtonScale = f("mediaButtonScale", d.mediaButtonScale),
+                showNotifications = o.optBoolean("showNotifications", d.showNotifications),
+                notifX = f("notifX", d.notifX),
+                notifY = f("notifY", d.notifY),
+                notifScale = f("notifScale", d.notifScale),
+                notifStyle = enumOr(o.optString("notifStyle"), d.notifStyle),
+                notifMax = o.optInt("notifMax", d.notifMax),
+                notifHideContent = o.optBoolean("notifHideContent", d.notifHideContent),
+                notifBgAlpha = f("notifBgAlpha", d.notifBgAlpha),
+                notifTextScale = f("notifTextScale", d.notifTextScale),
+                notifShowClear = o.optBoolean("notifShowClear", d.notifShowClear),
                 keyStyle = enumOr(o.optString("keyStyle"), d.keyStyle),
                 keyColor = o.optInt("keyColor", d.keyColor),
                 keyAlpha = f("keyAlpha", d.keyAlpha),
@@ -268,6 +392,9 @@ data class LockConfig(
                 pinHash = o.optStringOrNull("pinHash"),
                 pinSalt = o.optStringOrNull("pinSalt"),
                 pinLength = o.optInt("pinLength", d.pinLength),
+                portraitLayout = o.optJSONObject("portraitLayout")?.let { p ->
+                    p.keys().asSequence().associateWith { p.optDouble(it) }.filterValues { it.isFinite() }
+                },
             )
         }
 

@@ -20,7 +20,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
@@ -61,6 +64,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -68,6 +72,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.mariotatis.lockcontrol.data.LockConfig
+import com.mariotatis.lockcontrol.data.WidgetLimits
+import com.mariotatis.lockcontrol.media.LiveData
+import androidx.compose.runtime.collectAsState
 import com.mariotatis.lockcontrol.data.LockoutTracker
 import com.mariotatis.lockcontrol.data.PinHasher
 import kotlinx.coroutines.CoroutineScope
@@ -189,12 +196,15 @@ class LockState(private val scope: CoroutineScope) {
  */
 @Composable
 fun LockScreen(
-    config: LockConfig,
+    rawConfig: LockConfig,
     active: Boolean,
     keyEvents: Flow<Int>,
     onUnlocked: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val configuration = LocalConfiguration.current
+    val portrait = configuration.screenHeightDp > configuration.screenWidthDp
+    val config = remember(rawConfig, portrait) { rawConfig.forOrientation(portrait) }
     val scope = rememberCoroutineScope()
     val state = remember { LockState(scope) }
     val view = LocalView.current
@@ -231,6 +241,8 @@ fun LockScreen(
     val drag = remember { Animatable(0f) }
     val swipeThreshold = with(LocalDensity.current) { 90.dp.toPx() }
     val now = rememberNow(config.showSeconds, active)
+    val nowPlaying by LiveData.nowPlaying.collectAsState()
+    val notifications by LiveData.notifications.collectAsState()
 
     Box(
         modifier
@@ -283,13 +295,30 @@ fun LockScreen(
                 if (config.showClock) {
                     ClockPlacement(config.clockX, config.clockY, Modifier.fillMaxSize()) { ClockWidget(config, now) }
                 }
+                if (config.showNotifications && notifications.isNotEmpty()) {
+                    ClockPlacement(config.notifX, config.notifY, Modifier.fillMaxSize()) {
+                        NotificationsWidget(config, notifications, onClear = LiveData::clearNotifications)
+                    }
+                }
+                val playing = nowPlaying
+                if (config.showMedia && playing != null) {
+                    ClockPlacement(config.mediaX, config.mediaY, Modifier.fillMaxSize()) {
+                        MediaWidget(config, playing, LiveData.actions, active)
+                    }
+                }
                 if (config.showHint || config.showHintChevron || config.showHintBar) {
                     UnlockHint(config, Modifier.align(Alignment.BottomCenter))
                 }
             }
         }
 
-        StatusRow(config, unlocking = state.stage == LockStage.UNLOCKING, idleAlpha = 1f - passcode)
+        StatusRow(config)
+        if (config.showLockIcon) {
+            ClockPlacement(
+                config.lockIconX, config.lockIconY,
+                Modifier.fillMaxSize().graphicsLayer { alpha = 1f - passcode },
+            ) { LockIcon(config, unlocking = state.stage == LockStage.UNLOCKING) }
+        }
 
         if (passcode > 0.001f) {
             PasscodePanel(
@@ -316,16 +345,21 @@ fun LockScreen(
 }
 
 @Composable
-internal fun StatusRow(config: LockConfig, unlocking: Boolean, idleAlpha: Float) {
+internal fun StatusRow(config: LockConfig) {
     Box(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 18.dp)) {
-        Icon(
-            if (unlocking) Icons.Filled.LockOpen else Icons.Filled.Lock,
-            contentDescription = null,
-            tint = Color.White.copy(alpha = 0.9f * idleAlpha),
-            modifier = Modifier.align(Alignment.TopCenter).size(22.dp),
-        )
         if (config.showBattery) BatteryIndicator(Modifier.align(Alignment.TopEnd))
     }
+}
+
+/** The padlock glyph; turns into an open lock while unlocking. Positioned like any widget. */
+@Composable
+fun LockIcon(config: LockConfig, unlocking: Boolean, modifier: Modifier = Modifier) {
+    Icon(
+        if (unlocking) Icons.Filled.LockOpen else Icons.Filled.Lock,
+        contentDescription = null,
+        tint = Color(config.lockIconColor).copy(alpha = config.lockIconAlpha.coerceIn(0f, 1f)),
+        modifier = modifier.size(config.lockIconSize.coerceIn(WidgetLimits.lockIconSize).dp),
+    )
 }
 
 @Composable

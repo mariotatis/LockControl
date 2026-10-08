@@ -52,7 +52,7 @@ class LockOverlay(private val service: AccessibilityService) {
                 val config by ConfigRepository.config.collectAsState()
                 val active by screenOn.collectAsState()
                 LockScreen(
-                    config = config,
+                    rawConfig = config,
                     active = active,
                     keyEvents = keyEvents,
                     onUnlocked = { mainHandler.post { hide() } },

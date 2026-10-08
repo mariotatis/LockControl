@@ -28,6 +28,15 @@ object ConfigRepository {
             ?: LockConfig()
     }
 
+    /** Orientation the editor is showing; [edit] writes layout changes to it. */
+    @Volatile
+    var editingPortrait: Boolean = false
+
+    /** Editor changes: [transform] sees the config for the current orientation, and layout lands there. */
+    fun edit(transform: (LockConfig) -> LockConfig) = update { base ->
+        base.mergeEdit(editingPortrait, transform(base.forOrientation(editingPortrait)))
+    }
+
     fun update(transform: (LockConfig) -> LockConfig) {
         val updated = state.updateAndGet(transform)
         prefs.edit().putString(KEY, updated.toJson()).apply()

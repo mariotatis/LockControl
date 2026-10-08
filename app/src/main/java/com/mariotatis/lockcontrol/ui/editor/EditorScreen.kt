@@ -42,6 +42,14 @@ import com.mariotatis.lockcontrol.ui.theme.Accent
 import com.mariotatis.lockcontrol.ui.theme.AccentDeep
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -55,6 +63,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -67,6 +77,9 @@ import androidx.lifecycle.compose.currentStateAsState
 import com.mariotatis.lockcontrol.data.BackgroundFiles
 import com.mariotatis.lockcontrol.data.BackgroundType
 import com.mariotatis.lockcontrol.data.ConfigRepository
+import com.mariotatis.lockcontrol.media.LiveData
+import android.content.Intent
+import android.provider.Settings
 import com.mariotatis.lockcontrol.lock.LockAccessibilityService
 import com.mariotatis.lockcontrol.ui.theme.Ink
 import com.mariotatis.lockcontrol.ui.theme.Warning
@@ -74,15 +87,22 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun EditorScreen(onPreview: () -> Unit) {
-    val config by ConfigRepository.config.collectAsStateWithLifecycle()
+    val rawConfig by ConfigRepository.config.collectAsStateWithLifecycle()
+    // Portrait and landscape keep separate layouts; edit whichever one the device is in.
+    val configuration = LocalConfiguration.current
+    val portrait = configuration.screenHeightDp > configuration.screenWidthDp
+    SideEffect { ConfigRepository.editingPortrait = portrait }
+    val config = remember(rawConfig, portrait) { rawConfig.forOrientation(portrait) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var serviceEnabled by remember { mutableStateOf(LockAccessibilityService.isEnabled(context)) }
     var systemLockOn by remember { mutableStateOf(isSystemLockSecure(context)) }
+    var notificationAccess by remember { mutableStateOf(LiveData.hasAccess(context)) }
     LifecycleResumeEffect(Unit) {
         serviceEnabled = LockAccessibilityService.isEnabled(context)
         systemLockOn = isSystemLockSecure(context)
+        notificationAccess = LiveData.hasAccess(context)
         onPauseOrDispose { }
     }
     val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
@@ -91,6 +111,8 @@ fun EditorScreen(onPreview: () -> Unit) {
 
     var view by rememberSaveable { mutableStateOf(EditorView.LOCK) }
     var target by rememberSaveable { mutableStateOf(EditTarget.NONE) }
+    // Slide the panel away (right in landscape, down in portrait) to work on the full preview.
+    var panelCollapsed by rememberSaveable { mutableStateOf(false) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var passcodeMode by remember { mutableStateOf<PasscodeMode?>(null) }
     var importing by remember { mutableStateOf<BackgroundType?>(null) }
@@ -102,7 +124,7 @@ fun EditorScreen(onPreview: () -> Unit) {
             importing = type
             runCatching { BackgroundFiles.import(context, uri, type) }
                 .onSuccess { path ->
-                    ConfigRepository.update {
+                    ConfigRepository.edit {
                         it.copy(backgroundType = type, backgroundFile = path, bgScale = 1f, bgOffsetX = 0f, bgOffsetY = 0f)
                     }
                     BackgroundFiles.cleanup(context, path)
@@ -131,8 +153,10 @@ fun EditorScreen(onPreview: () -> Unit) {
                 val wide = maxWidth > maxHeight
                 // Landscape: the panel docks on the right and the preview slides left so it's never
                 // covered. Portrait: the panel floats at the bottom.
-                val panelOpen = wide && target != EditTarget.NONE
-                val reserve by animateDpAsState(if (panelOpen) PanelWidth + 12.dp else 0.dp, label = "reserve")
+                // Docked panel: ~30% of the width, clamped so it stays usable on any screen.
+                val panelWidth = (maxWidth * 0.3f).coerceIn(250.dp, 340.dp)
+                val panelOpen = wide && target != EditTarget.NONE && !panelCollapsed
+                val reserve by animateDpAsState(if (panelOpen) panelWidth + 10.dp else 0.dp, label = "reserve")
                 EditablePreview(
                     config = config,
                     playing = resumed,
@@ -140,7 +164,7 @@ fun EditorScreen(onPreview: () -> Unit) {
                     target = target,
                     onTarget = { target = it },
                     onWidgetChanged = { widget, f ->
-                        ConfigRepository.update {
+                        ConfigRepository.edit {
                             when (widget) {
                                 LockWidget.CLOCK -> it.copy(
                                     clockX = f.position.x, clockY = f.position.y, clockSize = f.size, clockStretch = f.stretch,
@@ -148,11 +172,18 @@ fun EditorScreen(onPreview: () -> Unit) {
                                 LockWidget.DATE -> it.copy(
                                     dateX = f.position.x, dateY = f.position.y, dateSize = f.size, dateStretch = f.stretch,
                                 )
+                                LockWidget.LOCK_ICON -> it.copy(
+                                    lockIconX = f.position.x, lockIconY = f.position.y, lockIconSize = f.size,
+                                )
+                                LockWidget.MEDIA -> it.copy(mediaX = f.position.x, mediaY = f.position.y, mediaScale = f.size)
+                                LockWidget.NOTIFICATIONS -> it.copy(
+                                    notifX = f.position.x, notifY = f.position.y, notifScale = f.size,
+                                )
                             }
                         }
                     },
                     onBackgroundChanged = { f ->
-                        ConfigRepository.update { it.copy(bgScale = f.scale, bgOffsetX = f.offset.x, bgOffsetY = f.offset.y) }
+                        ConfigRepository.edit { it.copy(bgScale = f.scale, bgOffsetX = f.offset.x, bgOffsetY = f.offset.y) }
                     },
                     modifier = Modifier
                         .align(Alignment.Center)
@@ -162,7 +193,7 @@ fun EditorScreen(onPreview: () -> Unit) {
                 val panelModifier = if (wide) {
                     Modifier
                         .align(Alignment.CenterEnd)
-                        .width(PanelWidth)
+                        .width(panelWidth)
                         .heightIn(max = maxHeight)
                 } else {
                     Modifier
@@ -171,45 +202,96 @@ fun EditorScreen(onPreview: () -> Unit) {
                         .fillMaxWidth()
                         .heightIn(max = maxHeight * 0.55f)
                 }
-                AnimatedContent(
-                    targetState = target,
-                    transitionSpec = {
-                        (fadeIn() + slideInVertically { it / 6 }) togetherWith (fadeOut() + slideOutVertically { it / 6 })
-                    },
-                    modifier = panelModifier,
-                    label = "panel",
-                ) { t ->
-                    val close = { target = EditTarget.NONE }
-                    when (t) {
-                        EditTarget.CLOCK -> ClockPanel(config, close)
-                        EditTarget.DATE -> DatePanel(config, close)
-                        EditTarget.BACKGROUND -> BackgroundPanel(
-                            config, importing,
-                            onPickImage = { imagePicker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly)) },
-                            onPickVideo = { videoPicker.launch(PickVisualMediaRequest(PickVisualMedia.VideoOnly)) },
-                            onClose = close,
-                            showKeypadBlur = view == EditorView.PASSCODE,
-                        )
-                        EditTarget.KEYS -> KeysPanel(
-                            config,
-                            onSetPasscode = { passcodeMode = PasscodeMode.SET },
-                            onRemovePasscode = { passcodeMode = PasscodeMode.REMOVE },
-                            onClose = close,
-                        )
-                        EditTarget.PROMPT -> PromptPanel(config, close)
-                        EditTarget.HINT -> HintPanel(config, close)
-                        EditTarget.NONE -> Box(Modifier)
+                if (panelCollapsed && target != EditTarget.NONE) {
+                    if (wide) {
+                        PanelTab(Modifier.align(Alignment.CenterEnd)) { panelCollapsed = false }
+                    } else {
+                        BottomPanelTab(Modifier.align(Alignment.BottomCenter)) { panelCollapsed = false }
+                    }
+                }
+                CompositionLocalProvider(
+                    LocalPanelDensity provides if (wide) PanelDensity.Compact else PanelDensity(),
+                    LocalPanelCollapse provides { panelCollapsed = true },
+                    LocalPanelCollapseIcon provides
+                        if (wide) Icons.AutoMirrored.Rounded.KeyboardArrowRight else Icons.Rounded.KeyboardArrowDown,
+                ) {
+                    AnimatedContent(
+                        targetState = if (panelCollapsed) EditTarget.NONE else target,
+                        transitionSpec = {
+                            (fadeIn() + slideInVertically { it / 6 }) togetherWith (fadeOut() + slideOutVertically { it / 6 })
+                        },
+                        modifier = panelModifier,
+                        label = "panel",
+                    ) { t ->
+                        val close = { target = EditTarget.NONE }
+                        when (t) {
+                            EditTarget.CLOCK -> ClockPanel(config, close)
+                            EditTarget.DATE -> DatePanel(config, close)
+                            EditTarget.BACKGROUND -> BackgroundPanel(
+                                config, importing,
+                                onPickImage = { imagePicker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly)) },
+                                onPickVideo = { videoPicker.launch(PickVisualMediaRequest(PickVisualMedia.VideoOnly)) },
+                                onClose = close,
+                                showKeypadBlur = view == EditorView.PASSCODE,
+                            )
+                            EditTarget.KEYS -> KeysPanel(
+                                config,
+                                onSetPasscode = { passcodeMode = PasscodeMode.SET },
+                                onRemovePasscode = { passcodeMode = PasscodeMode.REMOVE },
+                                onClose = close,
+                            )
+                            EditTarget.PROMPT -> PromptPanel(config, close)
+                            EditTarget.HINT -> HintPanel(config, close)
+                            EditTarget.LOCK_ICON -> LockIconPanel(config, close)
+                            EditTarget.MEDIA -> MediaPanel(config, notificationAccess, { openNotificationAccess(context) }, close)
+                            EditTarget.NOTIFICATIONS -> NotificationsPanel(
+                                config, notificationAccess, { openNotificationAccess(context) }, close,
+                            )
+                            EditTarget.NONE -> Box(Modifier)
+                        }
                     }
                 }
             }
         }
     }
 
-    if (showSettings) SettingsDialog(config, serviceEnabled, systemLockOn) { showSettings = false }
+    if (showSettings) SettingsDialog(config, serviceEnabled, systemLockOn, notificationAccess) { showSettings = false }
     passcodeMode?.let { mode -> PasscodeSetupDialog(mode, config) { passcodeMode = null } }
 }
 
-private val PanelWidth = 360.dp
+/** Handle at the bottom edge that brings the collapsed portrait panel back. */
+@Composable
+private fun BottomPanelTab(modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .width(96.dp)
+            .height(28.dp)
+            .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
+            .background(Color(0xFF101016).copy(alpha = 0.85f))
+            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(Icons.Rounded.KeyboardArrowUp, "Show panel", tint = Color.White, modifier = Modifier.size(22.dp))
+    }
+}
+
+/** Thin handle on the right edge that brings the collapsed panel back. */
+@Composable
+private fun PanelTab(modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .width(26.dp)
+            .height(86.dp)
+            .clip(RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp))
+            .background(Color(0xFF101016).copy(alpha = 0.85f))
+            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "Show panel", tint = Color.White, modifier = Modifier.size(20.dp))
+    }
+}
 
 @Composable
 private fun TopBar(
@@ -289,6 +371,13 @@ private fun AppBadge() {
             .background(Brush.linearGradient(listOf(Accent, AccentDeep))),
         contentAlignment = Alignment.Center,
     ) { Icon(Icons.Rounded.Shield, null, tint = Color.White, modifier = Modifier.size(18.dp)) }
+}
+
+fun openNotificationAccess(context: Context) {
+    context.startActivity(
+        Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
+            .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, LiveData.listenerComponent(context).flattenToString()),
+    )
 }
 
 fun isSystemLockSecure(context: Context): Boolean =

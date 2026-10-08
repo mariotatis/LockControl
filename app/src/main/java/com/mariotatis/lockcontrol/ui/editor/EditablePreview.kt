@@ -56,6 +56,13 @@ import com.mariotatis.lockcontrol.data.WidgetLimits
 import com.mariotatis.lockcontrol.ui.lock.ClockPlacement
 import com.mariotatis.lockcontrol.ui.lock.ClockWidget
 import com.mariotatis.lockcontrol.ui.lock.DateWidget
+import com.mariotatis.lockcontrol.ui.lock.LockIcon
+import com.mariotatis.lockcontrol.ui.lock.MediaWidget
+import com.mariotatis.lockcontrol.ui.lock.NotificationsWidget
+import com.mariotatis.lockcontrol.media.LiveData
+import com.mariotatis.lockcontrol.media.MediaActions
+import com.mariotatis.lockcontrol.media.SampleData
+import androidx.compose.runtime.collectAsState
 import com.mariotatis.lockcontrol.ui.lock.KeypadStyle
 import com.mariotatis.lockcontrol.ui.lock.LockBackground
 import com.mariotatis.lockcontrol.ui.lock.PasscodePanel
@@ -74,9 +81,9 @@ private const val SNAP = 0.02f
 enum class EditorView { LOCK, PASSCODE }
 
 /** What the editor is currently customizing; drives the floating panel. */
-enum class EditTarget { NONE, CLOCK, DATE, BACKGROUND, HINT, KEYS, PROMPT }
+enum class EditTarget { NONE, CLOCK, DATE, BACKGROUND, HINT, KEYS, PROMPT, MEDIA, NOTIFICATIONS, LOCK_ICON }
 
-enum class LockWidget { CLOCK, DATE }
+enum class LockWidget { CLOCK, DATE, MEDIA, NOTIFICATIONS, LOCK_ICON }
 
 /** Where a widget sits and how big it is; what a drag or resize commits. */
 data class WidgetFrame(val position: Offset, val size: Float, val stretch: Float)
@@ -200,7 +207,7 @@ private fun PreviewScene(
             },
         )
 
-        StatusRow(config, unlocking = false, idleAlpha = if (passcodeView) 0f else 1f)
+        StatusRow(config)
 
         if (passcodeView) {
             PasscodePanel(
@@ -227,6 +234,18 @@ private fun PreviewScene(
         val outlined = liveFrame == null
         // Hidden widgets stay in the editor as faint ghosts, so they can be tapped and shown again.
         EditableWidget(
+            frame = WidgetFrame(Offset(config.lockIconX, config.lockIconY), config.lockIconSize, 1f),
+            sizeRange = WidgetLimits.lockIconSize,
+            screenPx = screenPx,
+            selected = target == EditTarget.LOCK_ICON,
+            outlined = outlined,
+            ghost = !config.showLockIcon,
+            uniform = true,
+            onSelect = { select(EditTarget.LOCK_ICON) },
+            onDrag = { dragging = it },
+            onChanged = { onWidgetChanged(LockWidget.LOCK_ICON, it) },
+        ) { size, _ -> LockIcon(config.copy(lockIconSize = size), unlocking = false) }
+        EditableWidget(
             frame = WidgetFrame(Offset(config.dateX, config.dateY), config.dateSize, config.dateStretch),
             sizeRange = WidgetLimits.dateSize,
             screenPx = screenPx,
@@ -248,6 +267,42 @@ private fun PreviewScene(
             onDrag = { dragging = it },
             onChanged = { onWidgetChanged(LockWidget.CLOCK, it) },
         ) { size, stretch -> ClockWidget(config.copy(clockSize = size, clockStretch = stretch), now) }
+
+        // Live data when there is some; otherwise sample content so the widgets can still be placed.
+        val notifications = LiveData.notifications.collectAsState().value.ifEmpty { remember { SampleData.notifications() } }
+        EditableWidget(
+            frame = WidgetFrame(Offset(config.notifX, config.notifY), config.notifScale, 1f),
+            sizeRange = WidgetLimits.boxScale,
+            screenPx = screenPx,
+            selected = target == EditTarget.NOTIFICATIONS,
+            outlined = outlined,
+            ghost = !config.showNotifications,
+            uniform = true,
+            onSelect = { select(EditTarget.NOTIFICATIONS) },
+            onDrag = { dragging = it },
+            onChanged = { onWidgetChanged(LockWidget.NOTIFICATIONS, it) },
+        ) { size, _ -> NotificationsWidget(config.copy(notifScale = size), notifications) }
+
+        val live = LiveData.nowPlaying.collectAsState().value
+        EditableWidget(
+            frame = WidgetFrame(Offset(config.mediaX, config.mediaY), config.mediaScale, 1f),
+            sizeRange = WidgetLimits.boxScale,
+            screenPx = screenPx,
+            selected = target == EditTarget.MEDIA,
+            outlined = outlined,
+            ghost = !config.showMedia,
+            uniform = true,
+            onSelect = { select(EditTarget.MEDIA) },
+            onDrag = { dragging = it },
+            onChanged = { onWidgetChanged(LockWidget.MEDIA, it) },
+        ) { size, _ ->
+            MediaWidget(
+                config.copy(mediaScale = size),
+                live ?: SampleData.nowPlaying,
+                if (live != null) LiveData.actions else MediaActions.None,
+                playing,
+            )
+        }
     }
 }
 
@@ -285,6 +340,8 @@ private fun EditableWidget(
     outlined: Boolean,
     ghost: Boolean,
     onSelect: () -> Unit,
+    /** Box widgets (music, notifications) resize proportionally; text widgets stretch. */
+    uniform: Boolean = false,
     onDrag: (Offset?) -> Unit,
     onChanged: (WidgetFrame) -> Unit,
     content: @Composable (size: Float, stretch: Float) -> Unit,
@@ -381,9 +438,18 @@ private fun EditableWidget(
                             // Grow away from the anchored opposite corner.
                             val wantH = (base.height + corner.y * total.y).coerceAtLeast(8f)
                             val wantW = (base.width + corner.x * total.x).coerceAtLeast(8f)
-                            val size = (start.size * wantH / base.height).coerceIn(sizeRange)
+                            val size: Float
+                            val stretch: Float
+                            if (uniform) {
+                                val ratio = (wantW / base.width + wantH / base.height) / 2f
+                                size = (start.size * ratio).coerceIn(sizeRange)
+                                stretch = start.stretch
+                            } else {
+                                size = (start.size * wantH / base.height).coerceIn(sizeRange)
+                                stretch = (start.stretch * (wantW / base.width) / (size / start.size))
+                                    .coerceIn(WidgetLimits.stretch)
+                            }
                             val hRatio = size / start.size
-                            val stretch = (start.stretch * (wantW / base.width) / hRatio).coerceIn(WidgetLimits.stretch)
                             val wRatio = stretch / start.stretch * hRatio
                             val center = Offset(
                                 start.position.x + corner.x * (wRatio - 1f) * base.width / 2f / screen.width,

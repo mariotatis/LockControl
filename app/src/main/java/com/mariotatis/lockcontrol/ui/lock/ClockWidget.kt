@@ -169,6 +169,22 @@ fun Modifier.fitWidth(): Modifier = layout { measurable, constraints ->
 }
 
 /**
+ * Lays the content out at its natural size and scales it uniformly by
+ * [scale], reporting the scaled size so placement and hit-testing match.
+ */
+fun Modifier.scaledBy(scale: Float): Modifier = layout { measurable, constraints ->
+    val s = scale.coerceIn(0.2f, 4f)
+    val placeable = measurable.measure(Constraints())
+    layout((placeable.width * s).roundToInt(), (placeable.height * s).roundToInt()) {
+        placeable.placeWithLayer(0, 0) {
+            scaleX = s
+            scaleY = s
+            transformOrigin = TransformOrigin(0f, 0f)
+        }
+    }
+}
+
+/**
  * Places a single child so its center sits at ([x], [y]) in normalized
  * coordinates, clamped so it never leaves the screen.
  */
