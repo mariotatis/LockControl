@@ -21,9 +21,13 @@ android {
 
     buildTypes {
         release {
+            // Shrink unused code and resources (mostly the icon library): ~69 MB -> a few MB.
             optimization {
-                enable = false
+                enable = true
             }
+            // Sideloaded app: sign with the debug key so a release installs over a debug build
+            // (and vice versa) without wiping settings.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
