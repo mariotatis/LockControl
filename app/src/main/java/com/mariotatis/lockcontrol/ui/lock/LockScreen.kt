@@ -312,7 +312,13 @@ fun LockScreen(
             }
         }
 
-        StatusRow(config)
+        if (config.showBattery) {
+            // Fades out with the clock when the passcode pad opens.
+            ClockPlacement(
+                config.batteryX, config.batteryY,
+                Modifier.fillMaxSize().graphicsLayer { alpha = 1f - passcode },
+            ) { BatteryIndicator(config) }
+        }
         if (config.showLockIcon) {
             ClockPlacement(
                 config.lockIconX, config.lockIconY,
@@ -341,13 +347,6 @@ fun LockScreen(
                 },
             )
         }
-    }
-}
-
-@Composable
-internal fun StatusRow(config: LockConfig) {
-    Box(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 18.dp)) {
-        if (config.showBattery) BatteryIndicator(Modifier.align(Alignment.TopEnd))
     }
 }
 
@@ -402,31 +401,40 @@ internal fun UnlockHint(
 }
 
 @Composable
-private fun BatteryIndicator(modifier: Modifier = Modifier) {
+fun BatteryIndicator(config: LockConfig, modifier: Modifier = Modifier) {
     val (level, charging) = rememberBattery()
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Text("$level%", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.width(6.dp))
-        Canvas(Modifier.width(27.dp).height(13.dp)) {
+    val tint = Color(config.batteryColor)
+    val showIcon = config.batteryShowIcon || !config.batteryShowPercent // never render nothing
+    Row(
+        modifier
+            .scaledBy(config.batteryScale / 100f)
+            .graphicsLayer { alpha = config.batteryAlpha.coerceIn(0f, 1f) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (config.batteryShowPercent) {
+            Text("$level%", color = tint, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
+        if (config.batteryShowPercent && showIcon) Spacer(Modifier.width(6.dp))
+        if (showIcon) Canvas(Modifier.width(27.dp).height(13.dp)) {
             val stroke = 1.2.dp.toPx()
             val nub = 2.dp.toPx()
             val bodyW = size.width - nub - 1.dp.toPx()
             drawRoundRect(
-                Color.White.copy(alpha = 0.5f), Offset(stroke / 2, stroke / 2), Size(bodyW - stroke, size.height - stroke),
+                tint.copy(alpha = 0.5f), Offset(stroke / 2, stroke / 2), Size(bodyW - stroke, size.height - stroke),
                 CornerRadius(3.5.dp.toPx()), style = Stroke(stroke),
             )
             val inset = stroke + 1.2.dp.toPx()
             val fill = when {
                 charging -> Color(0xFF34C759)
                 level <= 20 -> Color(0xFFFF453A)
-                else -> Color.White
+                else -> tint
             }
             drawRoundRect(
                 fill, Offset(inset, inset),
                 Size((bodyW - inset * 2) * (level / 100f), size.height - inset * 2), CornerRadius(2.dp.toPx()),
             )
             drawRoundRect(
-                Color.White.copy(alpha = 0.5f), Offset(size.width - nub, size.height * 0.33f),
+                tint.copy(alpha = 0.5f), Offset(size.width - nub, size.height * 0.33f),
                 Size(nub, size.height * 0.34f), CornerRadius(1.dp.toPx()),
             )
         }

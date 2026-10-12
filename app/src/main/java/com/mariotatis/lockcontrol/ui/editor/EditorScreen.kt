@@ -172,6 +172,9 @@ fun EditorScreen(onPreview: () -> Unit) {
                                 LockWidget.DATE -> it.copy(
                                     dateX = f.position.x, dateY = f.position.y, dateSize = f.size, dateStretch = f.stretch,
                                 )
+                                LockWidget.BATTERY -> it.copy(
+                                    batteryX = f.position.x, batteryY = f.position.y, batteryScale = f.size,
+                                )
                                 LockWidget.LOCK_ICON -> it.copy(
                                     lockIconX = f.position.x, lockIconY = f.position.y, lockIconSize = f.size,
                                 )
@@ -243,6 +246,7 @@ fun EditorScreen(onPreview: () -> Unit) {
                             EditTarget.PROMPT -> PromptPanel(config, close)
                             EditTarget.HINT -> HintPanel(config, close)
                             EditTarget.LOCK_ICON -> LockIconPanel(config, close)
+                            EditTarget.BATTERY -> BatteryPanel(config, close)
                             EditTarget.MEDIA -> MediaPanel(config, notificationAccess, { openNotificationAccess(context) }, close)
                             EditTarget.NOTIFICATIONS -> NotificationsPanel(
                                 config, notificationAccess, { openNotificationAccess(context) }, close,
