@@ -67,7 +67,7 @@ import com.mariotatis.lockcontrol.ui.lock.KeypadStyle
 import com.mariotatis.lockcontrol.ui.lock.LockBackground
 import com.mariotatis.lockcontrol.ui.lock.PasscodePanel
 import com.mariotatis.lockcontrol.ui.lock.PromptStyle
-import com.mariotatis.lockcontrol.ui.lock.StatusRow
+import com.mariotatis.lockcontrol.ui.lock.BatteryIndicator
 import com.mariotatis.lockcontrol.ui.lock.UnlockHint
 import com.mariotatis.lockcontrol.ui.lock.clampBackgroundOffset
 import com.mariotatis.lockcontrol.ui.lock.rememberNow
@@ -81,9 +81,9 @@ private const val SNAP = 0.02f
 enum class EditorView { LOCK, PASSCODE }
 
 /** What the editor is currently customizing; drives the floating panel. */
-enum class EditTarget { NONE, CLOCK, DATE, BACKGROUND, HINT, KEYS, PROMPT, MEDIA, NOTIFICATIONS, LOCK_ICON }
+enum class EditTarget { NONE, CLOCK, DATE, BACKGROUND, HINT, KEYS, PROMPT, MEDIA, NOTIFICATIONS, LOCK_ICON, BATTERY }
 
-enum class LockWidget { CLOCK, DATE, MEDIA, NOTIFICATIONS, LOCK_ICON }
+enum class LockWidget { CLOCK, DATE, MEDIA, NOTIFICATIONS, LOCK_ICON, BATTERY }
 
 /** Where a widget sits and how big it is; what a drag or resize commits. */
 data class WidgetFrame(val position: Offset, val size: Float, val stretch: Float)
@@ -207,8 +207,6 @@ private fun PreviewScene(
             },
         )
 
-        StatusRow(config)
-
         if (passcodeView) {
             PasscodePanel(
                 title = config.promptLabel(),
@@ -233,6 +231,18 @@ private fun PreviewScene(
         // Hide widget outlines while framing the background so the photo is easy to judge.
         val outlined = liveFrame == null
         // Hidden widgets stay in the editor as faint ghosts, so they can be tapped and shown again.
+        EditableWidget(
+            frame = WidgetFrame(Offset(config.batteryX, config.batteryY), config.batteryScale, 1f),
+            sizeRange = WidgetLimits.boxScale,
+            screenPx = screenPx,
+            selected = target == EditTarget.BATTERY,
+            outlined = outlined,
+            ghost = !config.showBattery,
+            uniform = true,
+            onSelect = { select(EditTarget.BATTERY) },
+            onDrag = { dragging = it },
+            onChanged = { onWidgetChanged(LockWidget.BATTERY, it) },
+        ) { size, _ -> BatteryIndicator(config.copy(batteryScale = size)) }
         EditableWidget(
             frame = WidgetFrame(Offset(config.lockIconX, config.lockIconY), config.lockIconSize, 1f),
             sizeRange = WidgetLimits.lockIconSize,

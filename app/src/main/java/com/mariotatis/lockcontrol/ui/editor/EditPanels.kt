@@ -530,3 +530,32 @@ fun LockIconPanel(config: LockConfig, onClose: () -> Unit, modifier: Modifier = 
         )
     }
 }
+
+@Composable
+fun BatteryPanel(config: LockConfig, onClose: () -> Unit, modifier: Modifier = Modifier) {
+    GlassPanel(
+        title = "Battery", onClose = onClose, modifier = modifier,
+        leading = {
+            GlassIconButton(Icons.Rounded.AlignHorizontalCenter, "Center", { update { it.copy(batteryX = 0.5f) } })
+            VisibilityButton(config.showBattery) { update { it.copy(showBattery = !it.showBattery) } }
+        },
+    ) {
+        ColorScroller(PaletteColors, config.batteryColor) { c -> update { it.copy(batteryColor = c) } }
+        GlassSlider(Icons.Rounded.Opacity, config.batteryAlpha, 0.1f..1f, { a -> update { it.copy(batteryAlpha = a) } })
+        GlassLabel("Size")
+        GlassSlider(Icons.Rounded.FormatSize, config.batteryScale, WidgetLimits.boxScale, { v -> update { it.copy(batteryScale = v) } })
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // At least one of the two stays on.
+            ChipToggle("Percentage", config.batteryShowPercent) {
+                update { it.copy(batteryShowPercent = !it.batteryShowPercent, batteryShowIcon = it.batteryShowIcon || it.batteryShowPercent) }
+            }
+            ChipToggle("Icon", config.batteryShowIcon) {
+                update { it.copy(batteryShowIcon = !it.batteryShowIcon, batteryShowPercent = it.batteryShowPercent || it.batteryShowIcon) }
+            }
+        }
+        Text(
+            "The icon still turns green while charging and red when low.",
+            color = Color.White.copy(alpha = 0.6f), fontSize = (LocalPanelDensity.current.body.value * 0.92f).sp,
+        )
+    }
+}

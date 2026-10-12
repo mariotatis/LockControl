@@ -116,6 +116,13 @@ data class LockConfig(
     val dateFormat: DateFormat = DateFormat.LONG,
     val clockShadow: Boolean = true,
     val showBattery: Boolean = true,
+    val batteryX: Float = 0.93f,
+    val batteryY: Float = 0.045f,
+    val batteryScale: Float = 100f,
+    val batteryColor: Int = 0xFFFFFFFF.toInt(),
+    val batteryAlpha: Float = 1f,
+    val batteryShowPercent: Boolean = true,
+    val batteryShowIcon: Boolean = true,
     val showLockIcon: Boolean = true,
     val lockIconColor: Int = 0xFFFFFFFF.toInt(),
     val lockIconAlpha: Float = 0.9f,
@@ -232,6 +239,13 @@ data class LockConfig(
         put("dateFormat", dateFormat.name)
         put("clockShadow", clockShadow)
         put("showBattery", showBattery)
+        put("batteryX", num(batteryX))
+        put("batteryY", num(batteryY))
+        put("batteryScale", num(batteryScale))
+        put("batteryColor", batteryColor)
+        put("batteryAlpha", num(batteryAlpha))
+        put("batteryShowPercent", batteryShowPercent)
+        put("batteryShowIcon", batteryShowIcon)
         put("showLockIcon", showLockIcon)
         put("lockIconColor", lockIconColor)
         put("lockIconAlpha", num(lockIconAlpha))
@@ -289,6 +303,7 @@ data class LockConfig(
             "mediaX", "mediaY", "mediaScale",
             "notifX", "notifY", "notifScale",
             "lockIconX", "lockIconY", "lockIconSize",
+            "batteryX", "batteryY", "batteryScale",
             "bgScale", "bgOffsetX", "bgOffsetY",
             "keypadScale",
         )
@@ -348,6 +363,13 @@ data class LockConfig(
                 dateFormat = enumOr(o.optString("dateFormat"), d.dateFormat),
                 clockShadow = o.optBoolean("clockShadow", d.clockShadow),
                 showBattery = o.optBoolean("showBattery", d.showBattery),
+                batteryX = f("batteryX", d.batteryX),
+                batteryY = f("batteryY", d.batteryY),
+                batteryScale = f("batteryScale", d.batteryScale),
+                batteryColor = o.optInt("batteryColor", d.batteryColor),
+                batteryAlpha = f("batteryAlpha", d.batteryAlpha),
+                batteryShowPercent = o.optBoolean("batteryShowPercent", d.batteryShowPercent),
+                batteryShowIcon = o.optBoolean("batteryShowIcon", d.batteryShowIcon),
                 showLockIcon = o.optBoolean("showLockIcon", d.showLockIcon),
                 lockIconColor = o.optInt("lockIconColor", d.lockIconColor),
                 lockIconAlpha = f("lockIconAlpha", d.lockIconAlpha),
